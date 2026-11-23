@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
-// TODO before launch: replace these with values read from the contract or API
+// TODO before launch: replace with the real APY and balances from the contract or API
 const APY = 18;
 const MIN_STAKE = 10;
-const TRADING_BALANCE = 1000; // amount available to trade before any stake
+const TRADING_BALANCE = 1000;
 
 const TIERS = [
   { key: "1m", label: "1 month", days: 30 },
@@ -57,9 +57,16 @@ export default function StakePage() {
   const [amount, setAmount] = useState("");
   const [positions, setPositions] = useState<Position[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  // current time is read only in the browser, after the page loads
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const tier = TIERS[tierIndex];
-  const now = new Date();
 
   // staked amount is locked and cannot be traded
   const lockedStake = positions.reduce((sum, p) => sum + p.amount, 0);
@@ -67,7 +74,7 @@ export default function StakePage() {
 
   const amountNum = Number(amount) || 0;
   const reward = (amountNum * APY * tier.days) / (100 * 365);
-  const unlockPreview = fmtDate(addDays(now, tier.days));
+  const unlockPreview = now ? fmtDate(addDays(now, tier.days)) : "--";
 
   function stake() {
     if (amountNum < MIN_STAKE) {
@@ -96,7 +103,8 @@ export default function StakePage() {
   }
 
   function withdraw(p: Position) {
-    if (new Date() < p.unlockAt) {
+    const current = new Date();
+    if (current < p.unlockAt) {
       setMessage(`This stake unlocks on ${fmtDate(p.unlockAt)}.`);
       return;
     }
@@ -133,7 +141,6 @@ export default function StakePage() {
       />
 
       <div style={{ position: "relative", maxWidth: 1000, margin: "0 auto", padding: "20px 28px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
-        {/* header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Link
             href="/"
@@ -156,7 +163,6 @@ export default function StakePage() {
           <div style={{ width: 80 }} />
         </div>
 
-        {/* summary */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
           {[
             { k: "tradable USDC", v: fmt(tradable), c: "#59c7ff" },
@@ -173,7 +179,6 @@ export default function StakePage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 18 }}>
-          {/* new stake */}
           <div style={{ ...glass, borderRadius: "70px 70px 22px 22px", padding: "28px 26px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {TIERS.map((t, i) => (
@@ -242,7 +247,6 @@ export default function StakePage() {
             {message && <div style={{ color: "#75e7c2", fontSize: 12 }}>{message}</div>}
           </div>
 
-          {/* positions */}
           <div style={{ ...glass, borderRadius: "22px 90px 22px 22px", padding: "26px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: "0.08em" }}>
               YOUR STAKES
@@ -251,7 +255,7 @@ export default function StakePage() {
             {positions.length === 0 && <div style={{ fontSize: 12, color: "#91a8d1" }}>No active stake yet.</div>}
 
             {positions.map((p) => {
-              const unlocked = now >= p.unlockAt || new Date() >= p.unlockAt;
+              const unlocked = now !== null && now >= p.unlockAt;
               const label = TIERS.find((t) => t.key === p.tierKey)?.label ?? "";
               return (
                 <div
